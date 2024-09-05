@@ -2,6 +2,8 @@ import imaplib
 import email
 import time
 import os
+import xml.etree.ElementTree as ET
+
 
 from email.header import decode_header
 from dotenv import load_dotenv
@@ -11,8 +13,9 @@ load_dotenv()
 # Configuración
 CHECK_INTERVAL = 30  # Intervalo de chequeo en segundos
 IMAP_SERVER = "imap.gmail.com"
-EMAIL_ACCOUNT = os.getenv('EMAIL_ACCOUNT')
+EMAIL_ACCOUNT = os.getenv("EMAIL_ACCOUNT")
 PASSWORD = os.getenv("PASSWORD")
+XLS_FILE = os.getenv("XLS_FILE")
 
 
 def check_for_new_emails():
@@ -47,12 +50,20 @@ def check_for_new_emails():
                                 .replace("&lt;", "<")
                                 .replace("&gt;", ">")
                             )
-                            # Aquí puedes hacer lo que necesites con xml_content
-                            print(f"Contenido del archivo XML:\n{xml_content}")
 
-        mail.store(email_id, "-FLAGS", "\\Seen") # Marcar como no leído
+        mail.store(email_id, "-FLAGS", "\\Seen")  # Marcar como no leído
 
     mail.logout()
+
+
+def parse_xml_content(xml_content, root_tag, child_tag):
+    # Parsear el contenido XML
+    root = ET.fromstring(xml_content)
+    fact = root.find(".//%s" % root_tag)
+    if fact:
+        result = fact.find(".//%s" % child_tag)
+        return result.text
+    return None
 
 
 if __name__ == "__main__":
