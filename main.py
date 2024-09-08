@@ -1,3 +1,4 @@
+from ast import parse
 import imaplib
 import email
 import time
@@ -55,7 +56,40 @@ def check_for_new_emails():
     mail.logout()
 
 
+def parse_xml(xml_content, parent_tag, child_tags):
+    # Si child_tags es una cadena, lo convertimos en una lista
+    if isinstance(child_tags, str):
+        child_tags = [child_tags]
+
+    root = ET.fromstring(xml_content)
+    parent = root.find(parent_tag).text
+    parent_root = ET.fromstring(parent)
+
+    # Extraemos los resultados para cada etiqueta secundaria
+    results = [parent_root.find(".//%s" % tag).text for tag in child_tags]
+    return results if len(results) > 1 else results[0]
+
+
 if __name__ == "__main__":
-    while True:
-        check_for_new_emails()
-        time.sleep(CHECK_INTERVAL)
+    # open file fact_0103183026001_001-003-000094309.xml and convert it to string
+    # with open("FA001613000005158.xml", "r") as f:
+    with open("fact_0103183026001_001-003-000094309.xml", "r") as f:
+    # with open("0509202401010284147500120010020000036261234567811.xml", "r") as f:
+        xml_content = f.read()
+
+    razonSocial = parse_xml(xml_content, "comprobante", "razonSocial")
+    nombreComercial = parse_xml(xml_content, "comprobante", "nombreComercial")
+    ruc = parse_xml(xml_content, "comprobante", "ruc")
+
+    numFactura_parts = parse_xml(xml_content, "comprobante", ["estab", "ptoEmi", "secuencial"])
+    numFactura = "".join(numFactura_parts)
+    
+    print(razonSocial)
+    print(nombreComercial)
+    print(ruc)
+    print(numFactura)
+
+
+# while True:
+# check_for_new_emails()
+# time.sleep(CHECK_INTERVAL)
