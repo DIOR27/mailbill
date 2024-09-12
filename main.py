@@ -1,5 +1,6 @@
 import re
 import os
+import xlwt
 import email
 import imaplib
 import pandas as pd
@@ -70,10 +71,8 @@ def parse_xml(root, parent_tag, child_tags):
 
 
 def extract_child_tags(root, parent_tag, child_tags):
-    # Obtener el contenido del CDATA
     factura_xml_cdata = root.find(parent_tag).text
     factura_xml = re.sub(r"<!\[CDATA\[|\]\]>", "", factura_xml_cdata).strip()
-
     try:
         factura_root = ET.fromstring(factura_xml)
     except ET.ParseError as e:
@@ -83,15 +82,23 @@ def extract_child_tags(root, parent_tag, child_tags):
     # Encontrar la sección <detalles>
     detalles = factura_root.find(child_tags[0])
 
-    # Lista para almacenar los resultados
+    # Crear una lista para guardar los detalles
     detalles_list = []
 
     # Iterar sobre cada <detalle>
     for detalle in detalles.findall(child_tags[1]):
         detalle_dict = {}
         for field in detalle:
-            detalle_dict[field.tag] = field.text
-        detalles_list.append(detalle_dict)
+            # Guardar solo los campos necesarios
+            if field.tag in [
+                "descripcion",
+                "cantidad",
+                "precioUnitario",
+                "precioTotalSinImpuesto",
+            ]:
+                detalle_dict[field.tag] = field.text
+        if detalle_dict:  # Agregar solo si se encontraron los campos relevantes
+            detalles_list.append(detalle_dict)
 
     return detalles_list
 
@@ -125,7 +132,8 @@ if __name__ == "__main__":
     # open file fact_0103183026001_001-003-000094309.xml and convert it to string
     # with open("FA001613000005158.xml", "r") as f:
     # with open("fact_0103183026001_001-003-000094309.xml", "r") as f:
-    with open("0509202401010284147500120010020000036261234567811.xml", "r") as f:
+    # with open("0509202401010284147500120010020000036261234567811.xml", "r") as f:
+    with open("3108202401179207201800120330700000202534126153316.xml", "r") as f:
         xml_content = f.read()
 
     root = ET.fromstring(xml_content)
@@ -137,30 +145,34 @@ if __name__ == "__main__":
     numFactura_parts = parse_xml(root, "comprobante", ["estab", "ptoEmi", "secuencial"])
     numFactura = "".join(numFactura_parts)
     detalles = extract_child_tags(root, "comprobante", ["detalles", "detalle"])
-    
-    # fechaEmision = extract_block(root, "comprobante", "infoFactura", "fechaEmision")
-    infofactura = (extract_block(root, "comprobante", "infoFactura"))
+    fechaEmision = extract_block(root, "comprobante", "infoFactura", "fechaEmision")
+    total = extract_block(root, "comprobante", "infoFactura", "totalSinImpuestos")
+    totalIVA = extract_block(root, "comprobante", "infoFactura", "importeTotal")
+
+    for detalle in detalles:
+        print("\n".join([f"{key}: {value}" for key, value in detalle.items()]))
 
     file_path = "FACTURAS.xls"
-    if os.path.exists(file_path):
-        # Load existing file
-        df = pd.read_excel(file_path, sheet_name=None)
-    else:
-        # Create a new file with the required headers
-        df = {
-            "Factura": pd.DataFrame(
-                columns=[
-                    "Num Factura",
-                    "Razón Social",
-                    "Nombre Comercial",
-                    "RUC",
-                    "Fecha de emisión",
-                ]
-            ),
-            "Detalle": pd.DataFrame(
-                columns=["Descripción", "Cantidad", "Precio Unitario", "Descuento"]
-            ),
-        }
+
+    MAIN_HEADER = [
+        "Razon Social",
+        "Nombre Comercial",
+        "RUC",
+    ]
+
+    BILL_HEADER = [
+        "Num. Factura",
+        "Fecha Emision",
+        "Total",
+        "Total IVA",
+    ]
+
+    DETAILS_HEADER = [
+        "Descripción",
+        "Cantidad",
+        "Precio Unitario",
+        "Precio Total sin IVA",
+    ]
 
 
 # while True:
