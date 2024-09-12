@@ -56,12 +56,11 @@ def check_for_new_emails():
     mail.logout()
 
 
-def parse_xml(xml_content, parent_tag, child_tags):
+def parse_xml(root, parent_tag, child_tags):
     # Si child_tags es una cadena, lo convertimos en una lista
     if isinstance(child_tags, str):
         child_tags = [child_tags]
 
-    root = ET.fromstring(xml_content)
     parent = root.find(parent_tag).text
     parent_root = ET.fromstring(parent)
 
@@ -70,8 +69,8 @@ def parse_xml(xml_content, parent_tag, child_tags):
     return results if len(results) > 1 else results[0]
 
 
-def extract_bill_details(root):
-    factura_xml_cdata = root.find("comprobante").text
+def extract_child_tags(root, parent_tag, child_tags):
+    factura_xml_cdata = root.find(parent_tag).text
     factura_xml = re.sub(r"<!\[CDATA\[|\]\]>", "", factura_xml_cdata).strip()
     try:
         factura_root = ET.fromstring(factura_xml)
@@ -79,29 +78,44 @@ def extract_bill_details(root):
         print(f"Error parsing factura XML: {e}")
 
     # Find the <detalles> section
-    detalles = factura_root.find("detalles")
+    detalles = factura_root.find(child_tags[0])
 
     # Iterate over each <detalle>
-    for detalle in detalles.findall("detalle"):
+    for detalle in detalles.findall(child_tags[1]):
         print("Detalle:")
         for field in detalle:
             print(f"  {field.tag}: {field.text}")
 
 
+def extract_block(root, parent_tag, child_tag):
+    factura_xml_cdata = root.find(parent_tag).text
+    factura_xml = re.sub(r"<!\[CDATA\[|\]\]>", "", factura_xml_cdata).strip()
+    try:
+        factura_root = ET.fromstring(factura_xml)
+    except ET.ParseError as e:
+        print(f"Error parsing factura XML: {e}")
+
+    info_factura = factura_root.find(child_tag)
+
+    print("infoFactura:")
+    for child in info_factura:
+        print(f"  {child.tag}: {child.text}")
+
+
 if __name__ == "__main__":
     # open file fact_0103183026001_001-003-000094309.xml and convert it to string
-    with open("FA001613000005158.xml", "r") as f:
-        # with open("fact_0103183026001_001-003-000094309.xml", "r") as f:
-        # with open("0509202401010284147500120010020000036261234567811.xml", "r") as f:
+    # with open("FA001613000005158.xml", "r") as f:
+    # with open("fact_0103183026001_001-003-000094309.xml", "r") as f:
+    with open("0509202401010284147500120010020000036261234567811.xml", "r") as f:
         xml_content = f.read()
 
-    razonSocial = parse_xml(xml_content, "comprobante", "razonSocial")
-    nombreComercial = parse_xml(xml_content, "comprobante", "nombreComercial")
-    ruc = parse_xml(xml_content, "comprobante", "ruc")
+    root = ET.fromstring(xml_content)
 
-    numFactura_parts = parse_xml(
-        xml_content, "comprobante", ["estab", "ptoEmi", "secuencial"]
-    )
+    razonSocial = parse_xml(root, "comprobante", "razonSocial")
+    nombreComercial = parse_xml(root, "comprobante", "nombreComercial")
+    ruc = parse_xml(root, "comprobante", "ruc")
+
+    numFactura_parts = parse_xml(root, "comprobante", ["estab", "ptoEmi", "secuencial"])
     numFactura = "".join(numFactura_parts)
 
     print(razonSocial)
@@ -109,7 +123,9 @@ if __name__ == "__main__":
     print(ruc)
     print(numFactura)
 
-    extract_bill_details(xml_content)
+    extract_child_tags(root, "comprobante", ["detalles", "detalle"])
+    extract_block(root, "comprobante", "infoFactura")
+
 
 # while True:
 # check_for_new_emails()
