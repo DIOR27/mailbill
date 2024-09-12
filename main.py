@@ -1,11 +1,11 @@
-from ast import parse
-import imaplib
-import email
 import re
 import os
+import email
+import imaplib
+import pandas as pd
 import xml.etree.ElementTree as ET
 
-
+from ast import parse
 from email.header import decode_header
 from dotenv import load_dotenv
 
@@ -70,24 +70,33 @@ def parse_xml(root, parent_tag, child_tags):
 
 
 def extract_child_tags(root, parent_tag, child_tags):
+    # Obtener el contenido del CDATA
     factura_xml_cdata = root.find(parent_tag).text
     factura_xml = re.sub(r"<!\[CDATA\[|\]\]>", "", factura_xml_cdata).strip()
+
     try:
         factura_root = ET.fromstring(factura_xml)
     except ET.ParseError as e:
         print(f"Error parsing factura XML: {e}")
+        return []
 
-    # Find the <detalles> section
+    # Encontrar la sección <detalles>
     detalles = factura_root.find(child_tags[0])
 
-    # Iterate over each <detalle>
+    # Lista para almacenar los resultados
+    detalles_list = []
+
+    # Iterar sobre cada <detalle>
     for detalle in detalles.findall(child_tags[1]):
-        print("Detalle:")
+        detalle_dict = {}
         for field in detalle:
-            print(f"  {field.tag}: {field.text}")
+            detalle_dict[field.tag] = field.text
+        detalles_list.append(detalle_dict)
+
+    return detalles_list
 
 
-def extract_block(root, parent_tag, child_tag):
+def extract_block(root, parent_tag, child_tag, block_name=None):
     factura_xml_cdata = root.find(parent_tag).text
     factura_xml = re.sub(r"<!\[CDATA\[|\]\]>", "", factura_xml_cdata).strip()
     try:
@@ -97,9 +106,19 @@ def extract_block(root, parent_tag, child_tag):
 
     info_factura = factura_root.find(child_tag)
 
-    print("infoFactura:")
-    for child in info_factura:
-        print(f"  {child.tag}: {child.text}")
+    # create a map to store the results
+
+    if block_name:
+        for child in info_factura:
+            if child.tag == block_name:
+                return child.text
+    results = {}
+
+    if info_factura is not None:
+        for child in info_factura:
+            results[child.tag] = child.text
+
+    return results
 
 
 if __name__ == "__main__":
@@ -117,14 +136,31 @@ if __name__ == "__main__":
 
     numFactura_parts = parse_xml(root, "comprobante", ["estab", "ptoEmi", "secuencial"])
     numFactura = "".join(numFactura_parts)
+    detalles = extract_child_tags(root, "comprobante", ["detalles", "detalle"])
+    
+    # fechaEmision = extract_block(root, "comprobante", "infoFactura", "fechaEmision")
+    infofactura = (extract_block(root, "comprobante", "infoFactura"))
 
-    print(razonSocial)
-    print(nombreComercial)
-    print(ruc)
-    print(numFactura)
-
-    extract_child_tags(root, "comprobante", ["detalles", "detalle"])
-    extract_block(root, "comprobante", "infoFactura")
+    file_path = "FACTURAS.xls"
+    if os.path.exists(file_path):
+        # Load existing file
+        df = pd.read_excel(file_path, sheet_name=None)
+    else:
+        # Create a new file with the required headers
+        df = {
+            "Factura": pd.DataFrame(
+                columns=[
+                    "Num Factura",
+                    "Razón Social",
+                    "Nombre Comercial",
+                    "RUC",
+                    "Fecha de emisión",
+                ]
+            ),
+            "Detalle": pd.DataFrame(
+                columns=["Descripción", "Cantidad", "Precio Unitario", "Descuento"]
+            ),
+        }
 
 
 # while True:
