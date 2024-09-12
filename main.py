@@ -1,5 +1,6 @@
 import re
 import os
+import xlrd
 import xlwt
 import email
 import imaplib
@@ -7,8 +8,9 @@ import pandas as pd
 import xml.etree.ElementTree as ET
 
 from ast import parse
-from email.header import decode_header
+from xlutils.copy import copy
 from dotenv import load_dotenv
+from email.header import decode_header
 
 load_dotenv()
 
@@ -50,7 +52,7 @@ def check_for_new_emails():
                             .replace("&lt;", "<")
                             .replace("&gt;", ">")
                         )
-                        # TODO: Parsear el contenido XML
+
                         mail.store(email_id, "+FLAGS", "\\Seen")  # Marcar como leído
                     else:
                         mail.store(email_id, "-FLAGS", "\\Seen")  # Marcar como no leído
@@ -129,13 +131,23 @@ def extract_block(root, parent_tag, child_tag, block_name=None):
 
 
 def write_to_excel(file_path, main_data, bill_data, details_data):
-    # Crear un nuevo libro de trabajo de Excel
-    workbook = xlwt.Workbook()
+    # Verifica si el archivo ya existe
+    try:
+        # Abrir archivo existente
+        workbook_rd = xlrd.open_workbook(file_path, formatting_info=True)
+        sheet_rd = workbook_rd.sheet_by_index(0)
+        row_start = (
+            sheet_rd.nrows
+        )  # Número de filas existentes para saber dónde escribir
+        workbook = copy(workbook_rd)  # Crear una copia para escribir
+        sheet = workbook.get_sheet(0)  # Seleccionar la hoja para escribir
+    except FileNotFoundError:
+        # Crear un nuevo libro de trabajo si no existe
+        workbook = xlwt.Workbook()
+        sheet = workbook.add_sheet("Factura")
+        row_start = 0
 
-    # Agregar una hoja
-    sheet = workbook.add_sheet("Factura")
-
-    # Escribir las cabeceras
+    # Agregar cabeceras y datos
     MAIN_HEADER = ["Razon Social", "Nombre Comercial", "RUC"]
     BILL_HEADER = ["Num. Factura", "Fecha Emision", "Total", "Total IVA"]
     DETAILS_HEADER = [
@@ -145,25 +157,29 @@ def write_to_excel(file_path, main_data, bill_data, details_data):
         "Precio Total sin IVA",
     ]
 
+    # Si hay datos existentes, deja dos líneas en blanco antes de agregar nuevos datos
+    if row_start > 0:
+        row_start += 2
+
     # Escribir la cabecera MAIN_HEADER
     for col, header in enumerate(MAIN_HEADER):
-        sheet.write(0, col, header)
+        sheet.write(row_start, col, header)
     # Escribir los datos debajo de MAIN_HEADER
     for col, value in enumerate(main_data):
-        sheet.write(1, col, value)
+        sheet.write(row_start + 1, col, value)
 
     # Escribir la cabecera BILL_HEADER
     for col, header in enumerate(BILL_HEADER):
-        sheet.write(3, col, header)
+        sheet.write(row_start + 3, col, header)
     # Escribir los datos debajo de BILL_HEADER
     for col, value in enumerate(bill_data):
-        sheet.write(4, col, value)
+        sheet.write(row_start + 4, col, value)
 
     # Escribir la cabecera DETAILS_HEADER
     for col, header in enumerate(DETAILS_HEADER):
-        sheet.write(6, col, header)
+        sheet.write(row_start + 6, col, header)
     # Escribir los detalles debajo de DETAILS_HEADER
-    for row, detalle in enumerate(details_data, start=7):
+    for row, detalle in enumerate(details_data, start=row_start + 7):
         sheet.write(row, 0, detalle.get("descripcion", ""))
         sheet.write(row, 1, detalle.get("cantidad", ""))
         sheet.write(row, 2, detalle.get("precioUnitario", ""))
@@ -171,7 +187,7 @@ def write_to_excel(file_path, main_data, bill_data, details_data):
 
     # Guardar el archivo de Excel
     workbook.save(file_path)
-    print(f"Archivo '{file_path}' creado exitosamente.")
+    print(f"Archivo '{file_path}' actualizado exitosamente.")
 
 
 if __name__ == "__main__":
