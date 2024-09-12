@@ -1,5 +1,6 @@
 import re
 import os
+import time
 import xlrd
 import xlwt
 import email
@@ -40,18 +41,19 @@ def check_for_new_emails():
 
         if msg.is_multipart():
             for part in msg.walk():
+                xml_content = None
                 content_disposition = str(part.get("Content-Disposition"))
                 if "attachment" in content_disposition:
                     filename = part.get_filename()
                     if filename and filename.endswith(".xml"):
-                        # with open(filename, "wb") as f:
-                        # f.write(part.get_payload(decode=True))
                         xml_content = (
                             part.get_payload(decode=True)
                             .decode("utf-8")
                             .replace("&lt;", "<")
                             .replace("&gt;", ">")
                         )
+
+                        process_xml(xml_content)
 
                         mail.store(email_id, "+FLAGS", "\\Seen")  # Marcar como leído
                     else:
@@ -190,14 +192,10 @@ def write_to_excel(file_path, main_data, bill_data, details_data):
     print(f"Archivo '{file_path}' actualizado exitosamente.")
 
 
-if __name__ == "__main__":
-    # open file fact_0103183026001_001-003-000094309.xml and convert it to string
-    # with open("FA001613000005158.xml", "r") as f:
-    # with open("fact_0103183026001_001-003-000094309.xml", "r") as f:
-    # with open("0509202401010284147500120010020000036261234567811.xml", "r") as f:
-    with open("3108202401179207201800120330700000202534126153316.xml", "r") as f:
-        xml_content = f.read()
+def process_xml(xml_content):
+    """Función para procesar el contenido XML y escribir en Excel."""
 
+    # Parsear el XML
     root = ET.fromstring(xml_content)
 
     razonSocial = parse_xml(root, "comprobante", "razonSocial")
@@ -211,18 +209,15 @@ if __name__ == "__main__":
     total = extract_block(root, "comprobante", "infoFactura", "totalSinImpuestos")
     totalIVA = extract_block(root, "comprobante", "infoFactura", "importeTotal")
 
-    # for detalle in detalles:
-    #     print("\n".join([f"{key}: {value}" for key, value in detalle.items()]))
-
     main_data = [razonSocial, nombreComercial, ruc]
     bill_data = [numFactura, fechaEmision, total, totalIVA]
     details_data = detalles
 
     # Escribir los datos en el archivo Excel
-    file_path = "facturas.xls"
-    write_to_excel(file_path, main_data, bill_data, details_data)
+    write_to_excel(XLS_FILE, main_data, bill_data, details_data)
 
 
-# while True:
-# check_for_new_emails()
-# time.sleep(CHECK_INTERVAL)
+if __name__ == "__main__":
+    while True:
+        check_for_new_emails()
+        time.sleep(CHECK_INTERVAL)
