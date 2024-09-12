@@ -128,6 +128,52 @@ def extract_block(root, parent_tag, child_tag, block_name=None):
     return results
 
 
+def write_to_excel(file_path, main_data, bill_data, details_data):
+    # Crear un nuevo libro de trabajo de Excel
+    workbook = xlwt.Workbook()
+
+    # Agregar una hoja
+    sheet = workbook.add_sheet("Factura")
+
+    # Escribir las cabeceras
+    MAIN_HEADER = ["Razon Social", "Nombre Comercial", "RUC"]
+    BILL_HEADER = ["Num. Factura", "Fecha Emision", "Total", "Total IVA"]
+    DETAILS_HEADER = [
+        "Descripción",
+        "Cantidad",
+        "Precio Unitario",
+        "Precio Total sin IVA",
+    ]
+
+    # Escribir la cabecera MAIN_HEADER
+    for col, header in enumerate(MAIN_HEADER):
+        sheet.write(0, col, header)
+    # Escribir los datos debajo de MAIN_HEADER
+    for col, value in enumerate(main_data):
+        sheet.write(1, col, value)
+
+    # Escribir la cabecera BILL_HEADER
+    for col, header in enumerate(BILL_HEADER):
+        sheet.write(3, col, header)
+    # Escribir los datos debajo de BILL_HEADER
+    for col, value in enumerate(bill_data):
+        sheet.write(4, col, value)
+
+    # Escribir la cabecera DETAILS_HEADER
+    for col, header in enumerate(DETAILS_HEADER):
+        sheet.write(6, col, header)
+    # Escribir los detalles debajo de DETAILS_HEADER
+    for row, detalle in enumerate(details_data, start=7):
+        sheet.write(row, 0, detalle.get("descripcion", ""))
+        sheet.write(row, 1, detalle.get("cantidad", ""))
+        sheet.write(row, 2, detalle.get("precioUnitario", ""))
+        sheet.write(row, 3, detalle.get("precioTotalSinImpuesto", ""))
+
+    # Guardar el archivo de Excel
+    workbook.save(file_path)
+    print(f"Archivo '{file_path}' creado exitosamente.")
+
+
 if __name__ == "__main__":
     # open file fact_0103183026001_001-003-000094309.xml and convert it to string
     # with open("FA001613000005158.xml", "r") as f:
@@ -149,30 +195,16 @@ if __name__ == "__main__":
     total = extract_block(root, "comprobante", "infoFactura", "totalSinImpuestos")
     totalIVA = extract_block(root, "comprobante", "infoFactura", "importeTotal")
 
-    for detalle in detalles:
-        print("\n".join([f"{key}: {value}" for key, value in detalle.items()]))
+    # for detalle in detalles:
+    #     print("\n".join([f"{key}: {value}" for key, value in detalle.items()]))
 
-    file_path = "FACTURAS.xls"
+    main_data = [razonSocial, nombreComercial, ruc]
+    bill_data = [numFactura, fechaEmision, total, totalIVA]
+    details_data = detalles
 
-    MAIN_HEADER = [
-        "Razon Social",
-        "Nombre Comercial",
-        "RUC",
-    ]
-
-    BILL_HEADER = [
-        "Num. Factura",
-        "Fecha Emision",
-        "Total",
-        "Total IVA",
-    ]
-
-    DETAILS_HEADER = [
-        "Descripción",
-        "Cantidad",
-        "Precio Unitario",
-        "Precio Total sin IVA",
-    ]
+    # Escribir los datos en el archivo Excel
+    file_path = "facturas.xls"
+    write_to_excel(file_path, main_data, bill_data, details_data)
 
 
 # while True:
