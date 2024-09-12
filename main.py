@@ -1,7 +1,7 @@
 from ast import parse
 import imaplib
 import email
-import time
+import re
 import os
 import xml.etree.ElementTree as ET
 
@@ -70,25 +70,46 @@ def parse_xml(xml_content, parent_tag, child_tags):
     return results if len(results) > 1 else results[0]
 
 
+def extract_bill_details(root):
+    factura_xml_cdata = root.find("comprobante").text
+    factura_xml = re.sub(r"<!\[CDATA\[|\]\]>", "", factura_xml_cdata).strip()
+    try:
+        factura_root = ET.fromstring(factura_xml)
+    except ET.ParseError as e:
+        print(f"Error parsing factura XML: {e}")
+
+    # Find the <detalles> section
+    detalles = factura_root.find("detalles")
+
+    # Iterate over each <detalle>
+    for detalle in detalles.findall("detalle"):
+        print("Detalle:")
+        for field in detalle:
+            print(f"  {field.tag}: {field.text}")
+
+
 if __name__ == "__main__":
     # open file fact_0103183026001_001-003-000094309.xml and convert it to string
-    # with open("FA001613000005158.xml", "r") as f:
-    with open("fact_0103183026001_001-003-000094309.xml", "r") as f:
-    # with open("0509202401010284147500120010020000036261234567811.xml", "r") as f:
+    with open("FA001613000005158.xml", "r") as f:
+        # with open("fact_0103183026001_001-003-000094309.xml", "r") as f:
+        # with open("0509202401010284147500120010020000036261234567811.xml", "r") as f:
         xml_content = f.read()
 
     razonSocial = parse_xml(xml_content, "comprobante", "razonSocial")
     nombreComercial = parse_xml(xml_content, "comprobante", "nombreComercial")
     ruc = parse_xml(xml_content, "comprobante", "ruc")
 
-    numFactura_parts = parse_xml(xml_content, "comprobante", ["estab", "ptoEmi", "secuencial"])
+    numFactura_parts = parse_xml(
+        xml_content, "comprobante", ["estab", "ptoEmi", "secuencial"]
+    )
     numFactura = "".join(numFactura_parts)
-    
+
     print(razonSocial)
     print(nombreComercial)
     print(ruc)
     print(numFactura)
 
+    extract_bill_details(xml_content)
 
 # while True:
 # check_for_new_emails()
