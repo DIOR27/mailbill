@@ -37,7 +37,8 @@ def check_for_new_emails():
         _, msg_data = mail.fetch(email_id, "(RFC822)")
         msg = email.message_from_bytes(msg_data[0][1])
         subject = msg["subject"] if msg["subject"] else "Sin Asunto"
-        print(f"Nuevo correo: {subject}")
+        sender = msg["from"]
+        print(f"Nuevo correo: {subject} de {sender}")
 
         if msg.is_multipart():
             for part in msg.walk():
@@ -46,14 +47,16 @@ def check_for_new_emails():
                 if "attachment" in content_disposition:
                     filename = part.get_filename()
                     if filename and filename.endswith(".xml"):
-                        xml_content = (
-                            part.get_payload(decode=True)
-                            .decode("utf-8")
-                            .replace("&lt;", "<")
-                            .replace("&gt;", ">")
-                        )
+                        print(f"Analizando archivo adjunto: {filename}")
+                        with open(filename, "w") as f:
+                            xml_content = (
+                                f"{part.get_payload(decode=True).decode('utf-8')}"
+                            )
 
-                        process_xml(xml_content)
+                        try:
+                            process_xml(xml_content)
+                        except Exception as e:
+                            print(f"Error procesando XML: {e}")
 
                         mail.store(email_id, "+FLAGS", "\\Seen")  # Marcar como leído
                     else:
