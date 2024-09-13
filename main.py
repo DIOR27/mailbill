@@ -48,10 +48,6 @@ def check_for_new_emails():
                     filename = part.get_filename()
                     if filename and filename.endswith(".xml"):
                         print(f"Analizando archivo adjunto: {filename}")
-                        # with open(filename, "w") as f:
-                        #     xml_content = (
-                        #         f"{part.get_payload(decode=True).decode('utf-8')}"
-                        #     )
                         xml_content = part.get_payload(decode=True).decode("utf-8")
 
                         try:
