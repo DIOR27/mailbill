@@ -181,11 +181,12 @@ def write_to_excel(file_path, main_data, bill_data, details_data):
     for col, value in enumerate(bill_data):
         sheet.write(row_start + 4, col, value)
 
+    sheet.write(row_start + 6, 0, "Detalles", bold_style)
     # Escribir la cabecera DETAILS_HEADER
     for col, header in enumerate(DETAILS_HEADER):
-        sheet.write(row_start + 6, col, header)
+        sheet.write(row_start + 7, col, header)
     # Escribir los detalles debajo de DETAILS_HEADER
-    last_detail_row = row_start + 7
+    last_detail_row = row_start + 8
     for row, detalle in enumerate(details_data, start=last_detail_row):
         sheet.write(row, 0, detalle.get("descripcion", ""))
         sheet.write(row, 1, detalle.get("cantidad", ""))
