@@ -48,10 +48,11 @@ def check_for_new_emails():
                     filename = part.get_filename()
                     if filename and filename.endswith(".xml"):
                         print(f"Analizando archivo adjunto: {filename}")
-                        with open(filename, "w") as f:
-                            xml_content = (
-                                f"{part.get_payload(decode=True).decode('utf-8')}"
-                            )
+                        # with open(filename, "w") as f:
+                        #     xml_content = (
+                        #         f"{part.get_payload(decode=True).decode('utf-8')}"
+                        #     )
+                        xml_content = part.get_payload(decode=True).decode("utf-8")
 
                         try:
                             process_xml(xml_content)
@@ -166,10 +167,14 @@ def write_to_excel(file_path, main_data, bill_data, details_data):
     if row_start > 0:
         row_start += 2
 
+    # Definir estilos
+    bold_style = xlwt.easyxf("font: bold 1")  # Estilo de negrita
+    separator_style = xlwt.easyxf("borders: top medium")  # Estilo de borde superior
+
     # Escribir la cabecera MAIN_HEADER
     for col, header in enumerate(MAIN_HEADER):
-        sheet.write(row_start, col, header)
-    # Escribir los datos debajo de MAIN_HEADER
+        sheet.write(row_start, col, header, bold_style)
+        # Escribir los datos debajo de MAIN_HEADER
     for col, value in enumerate(main_data):
         sheet.write(row_start + 1, col, value)
 
@@ -184,11 +189,17 @@ def write_to_excel(file_path, main_data, bill_data, details_data):
     for col, header in enumerate(DETAILS_HEADER):
         sheet.write(row_start + 6, col, header)
     # Escribir los detalles debajo de DETAILS_HEADER
-    for row, detalle in enumerate(details_data, start=row_start + 7):
+    last_detail_row = row_start + 7
+    for row, detalle in enumerate(details_data, start=last_detail_row):
         sheet.write(row, 0, detalle.get("descripcion", ""))
         sheet.write(row, 1, detalle.get("cantidad", ""))
         sheet.write(row, 2, detalle.get("precioUnitario", ""))
         sheet.write(row, 3, detalle.get("precioTotalSinImpuesto", ""))
+
+    # Agregar una línea separadora debajo del último detalle
+    last_separator_row = last_detail_row + len(details_data)
+    for col in range(len(DETAILS_HEADER)):
+        sheet.write(last_separator_row, col, "", separator_style)
 
     # Guardar el archivo de Excel
     workbook.save(file_path)
