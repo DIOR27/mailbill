@@ -94,6 +94,7 @@ def extract_child_tags(root, parent_tag, child_tags, main_data=None):
         detalle_data = main_data.copy() if main_data else []
 
         # Extraer campos específicos de cada detalle
+        valor = 0
         for field in detalle:
             if field.tag in [
                 "descripcion",
@@ -102,6 +103,20 @@ def extract_child_tags(root, parent_tag, child_tags, main_data=None):
                 "precioTotalSinImpuesto",
             ]:
                 detalle_data.append(field.text)
+            if field.tag == "precioTotalSinImpuesto":
+                valor = float(field.text)
+
+        # Extraer tarifa de impuestos
+        impuestos = detalle.find("impuestos")
+        if impuestos is not None:
+            for impuesto in impuestos.findall("impuesto"):
+                tarifa = impuesto.find("tarifa")
+                if tarifa is not None:
+                    valorIVA = (float(tarifa.text) / 100) * valor + valor
+                    detalle_data.append(str(round(valorIVA, 2)))
+                    detalle_data.append(tarifa.text)
+                else:
+                    detalle_data.append("")
 
         # Agregar la combinación de main_data y los detalles específicos a la lista de detalles
         detalles_list.append(detalle_data)
@@ -165,22 +180,22 @@ def write_to_excel(file_path, data):
         "Descripción",
         "Cantidad",
         "Precio Unitario",
-        "Precio Total sin IVA",
+        "Precio Total",
+        "Precio Total con IVA",
+        "Impuesto",
     ]
-
-    # Si hay datos existentes, deja dos líneas en blanco antes de agregar nuevos datos
-    if row_start > 0:
-        row_start += 2
 
     # Definir estilos
     bold_style = xlwt.easyxf("font: bold 1")  # Estilo de negrita
 
-    # Escribir la cabecera MAIN_HEADER
-    for col, header in enumerate(HEADERS):
-        sheet.write(row_start, col, header, bold_style)
+    # Escribir la cabecera MAIN_HEADER solo si es un archivo nuevo
+    if row_start == 0:
+        for col, header in enumerate(HEADERS):
+            sheet.write(row_start, col, header, bold_style)
+        row_start += 1  # Mueve el inicio de los datos a la siguiente fila
 
     # Escribir los datos debajo de MAIN_HEADER
-    row = row_start + 1  # Empieza en la fila siguiente a la cabecera
+    row = row_start  # Empieza en la fila siguiente a la cabecera
 
     for entry in data:
         if isinstance(entry[0], list):
@@ -229,7 +244,6 @@ def process_xml(xml_content):
     details_data = extract_child_tags(
         root, "comprobante", ["detalles", "detalle"], main_data
     )
-
 
     # Escribir los datos en el archivo Excel
     write_to_excel(XLS_FILE, details_data)
