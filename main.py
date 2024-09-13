@@ -16,7 +16,7 @@ from email.header import decode_header
 load_dotenv()
 
 # Configuración
-CHECK_INTERVAL = 10  # Intervalo de chequeo en segundos
+CHECK_INTERVAL = 5  # Intervalo de chequeo en segundos
 IMAP_SERVER = "imap.gmail.com"
 EMAIL_ACCOUNT = os.getenv("EMAIL_ACCOUNT")
 PASSWORD = os.getenv("PASSWORD")
@@ -74,7 +74,7 @@ def parse_xml(root, parent_tag, child_tags):
     return results if len(results) > 1 else results[0]
 
 
-def extract_child_tags(root, parent_tag, child_tags):
+def extract_child_tags(root, parent_tag, child_tags, main_data=None):
     factura_xml_cdata = root.find(parent_tag).text
     factura_xml = re.sub(r"<!\[CDATA\[|\]\]>", "", factura_xml_cdata).strip()
     try:
@@ -86,23 +86,25 @@ def extract_child_tags(root, parent_tag, child_tags):
     # Encontrar la sección <detalles>
     detalles = factura_root.find(child_tags[0])
 
-    # Crear una lista para guardar los detalles
     detalles_list = []
 
     # Iterar sobre cada <detalle>
     for detalle in detalles.findall(child_tags[1]):
-        detalle_dict = {}
+        # Lista temporal para almacenar cada detalle con los datos principales
+        detalle_data = main_data.copy() if main_data else []
+
+        # Extraer campos específicos de cada detalle
         for field in detalle:
-            # Guardar solo los campos necesarios
             if field.tag in [
                 "descripcion",
                 "cantidad",
                 "precioUnitario",
                 "precioTotalSinImpuesto",
             ]:
-                detalle_dict[field.tag] = field.text
-        if detalle_dict:  # Agregar solo si se encontraron los campos relevantes
-            detalles_list.append(detalle_dict)
+                detalle_data.append(field.text)
+
+        # Agregar la combinación de main_data y los detalles específicos a la lista de detalles
+        detalles_list.append(detalle_data)
 
     return detalles_list
 
@@ -132,7 +134,9 @@ def extract_block(root, parent_tag, child_tag, block_name=None):
     return results
 
 
-def write_to_excel(file_path, main_data, bill_data, details_data):
+def write_to_excel(file_path, data):
+    """Escribe los datos en un archivo Excel, línea por línea."""
+
     # Verifica si el archivo ya existe
     try:
         # Abrir archivo existente
@@ -150,9 +154,14 @@ def write_to_excel(file_path, main_data, bill_data, details_data):
         row_start = 0
 
     # Agregar cabeceras y datos
-    MAIN_HEADER = ["Razon Social", "Nombre Comercial", "RUC"]
-    BILL_HEADER = ["Num. Factura", "Fecha Emision", "Total", "Total IVA"]
-    DETAILS_HEADER = [
+    HEADERS = [
+        "Razon Social",
+        "Nombre Comercial",
+        "RUC",
+        "Num. Factura",
+        "Fecha Emision",
+        "Total",
+        "Total IVA",
         "Descripción",
         "Cantidad",
         "Precio Unitario",
@@ -165,38 +174,26 @@ def write_to_excel(file_path, main_data, bill_data, details_data):
 
     # Definir estilos
     bold_style = xlwt.easyxf("font: bold 1")  # Estilo de negrita
-    separator_style = xlwt.easyxf("borders: top medium")  # Estilo de borde superior
 
     # Escribir la cabecera MAIN_HEADER
-    for col, header in enumerate(MAIN_HEADER):
+    for col, header in enumerate(HEADERS):
         sheet.write(row_start, col, header, bold_style)
-        # Escribir los datos debajo de MAIN_HEADER
-    for col, value in enumerate(main_data):
-        sheet.write(row_start + 1, col, value)
 
-    # Escribir la cabecera BILL_HEADER
-    for col, header in enumerate(BILL_HEADER):
-        sheet.write(row_start + 3, col, header)
-    # Escribir los datos debajo de BILL_HEADER
-    for col, value in enumerate(bill_data):
-        sheet.write(row_start + 4, col, value)
+    # Escribir los datos debajo de MAIN_HEADER
+    row = row_start + 1  # Empieza en la fila siguiente a la cabecera
 
-    sheet.write(row_start + 6, 0, "Detalles", bold_style)
-    # Escribir la cabecera DETAILS_HEADER
-    for col, header in enumerate(DETAILS_HEADER):
-        sheet.write(row_start + 7, col, header)
-    # Escribir los detalles debajo de DETAILS_HEADER
-    last_detail_row = row_start + 8
-    for row, detalle in enumerate(details_data, start=last_detail_row):
-        sheet.write(row, 0, detalle.get("descripcion", ""))
-        sheet.write(row, 1, detalle.get("cantidad", ""))
-        sheet.write(row, 2, detalle.get("precioUnitario", ""))
-        sheet.write(row, 3, detalle.get("precioTotalSinImpuesto", ""))
-
-    # Agregar una línea separadora debajo del último detalle
-    last_separator_row = last_detail_row + len(details_data)
-    for col in range(len(DETAILS_HEADER)):
-        sheet.write(last_separator_row, col, "", separator_style)
+    for entry in data:
+        if isinstance(entry[0], list):
+            # Si los datos están en formato de lista de listas
+            for row_data in entry:
+                for col, value in enumerate(row_data):
+                    sheet.write(row, col, value)
+                row += 1
+        else:
+            # Si los datos están en una sola lista
+            for col, value in enumerate(entry):
+                sheet.write(row, col, value)
+            row += 1
 
     # Guardar el archivo de Excel
     workbook.save(file_path)
@@ -215,17 +212,27 @@ def process_xml(xml_content):
 
     numFactura_parts = parse_xml(root, "comprobante", ["estab", "ptoEmi", "secuencial"])
     numFactura = "".join(numFactura_parts)
-    detalles = extract_child_tags(root, "comprobante", ["detalles", "detalle"])
     fechaEmision = extract_block(root, "comprobante", "infoFactura", "fechaEmision")
     total = extract_block(root, "comprobante", "infoFactura", "totalSinImpuestos")
     totalIVA = extract_block(root, "comprobante", "infoFactura", "importeTotal")
 
-    main_data = [razonSocial, nombreComercial, ruc]
-    bill_data = [numFactura, fechaEmision, total, totalIVA]
-    details_data = detalles
+    main_data = [
+        razonSocial,
+        nombreComercial,
+        ruc,
+        numFactura,
+        fechaEmision,
+        total,
+        totalIVA,
+    ]
+
+    details_data = extract_child_tags(
+        root, "comprobante", ["detalles", "detalle"], main_data
+    )
+
 
     # Escribir los datos en el archivo Excel
-    write_to_excel(XLS_FILE, main_data, bill_data, details_data)
+    write_to_excel(XLS_FILE, details_data)
 
 
 if __name__ == "__main__":
